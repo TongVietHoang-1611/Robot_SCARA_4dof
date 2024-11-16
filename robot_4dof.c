@@ -1,16 +1,20 @@
-// Defines pin numbers
-const int stepxPin = 2; 
-const int dirxPin = 5; 
-const int stepyPin = 3; 
-const int diryPin = 6; 
-const int stepzPin = 4; 
-const int dirzPin = 7; 
-const int enPin = 8; 
+// Định nghĩa chân pin
+const int stepxPin = 2;
+const int dirxPin = 5;
+const int enPin = 8;
+const int stepyPin = 3;
+const int diryPin = 6;
+const int stepzPin = 4;
+const int dirzPin = 7;
+const int stepsPerRevolution = 200; // Số bước cho một vòng quay
 
-const int stepsPerRevolution = 200; // Number of steps per revolution
+// Biến để theo dõi vị trí hiện tại
+long currentX = 0;
+long currentY = 0;
+long currentZ = 0;
 
 void setup() {
-  // Set pin modes
+  // Thiết lập các chân pin output
   pinMode(stepxPin, OUTPUT);
   pinMode(dirxPin, OUTPUT);
   pinMode(stepyPin, OUTPUT);
@@ -18,76 +22,97 @@ void setup() {
   pinMode(stepzPin, OUTPUT);
   pinMode(dirzPin, OUTPUT);
   pinMode(enPin, OUTPUT);
+  
+  digitalWrite(enPin, LOW); // Enable động cơ
+}
 
-  // Enable the driver
-  digitalWrite(enPin, LOW);
+// Hàm di chuyển đồng bộ 3 trục theo thuật toán Bresenham
+void moveSync(long x, long y, long z, int stepDelay) {
+  long dx = abs(x - currentX);
+  long dy = abs(y - currentY);
+  long dz = abs(z - currentZ);
+  
+  // Xác định hướng cho mỗi trục
+  digitalWrite(dirxPin, x > currentX ? HIGH : LOW);
+  digitalWrite(diryPin, y > currentY ? HIGH : LOW);
+  digitalWrite(dirzPin, z > currentZ ? HIGH : LOW);
+  
+  // Tìm khoảng cách lớn nhất để làm trục chính
+  long maxDist = max(dx, max(dy, dz));
+  
+  // Các biến lỗi cho thuật toán Bresenham
+  long errorY = maxDist / 2;
+  long errorZ = maxDist / 2;
+  long errorX = maxDist / 2;
+  
+  // Đếm số bước đã di chuyển
+  long stepCount = 0;
+  
+  while (stepCount < maxDist) {
+    // Reset tất cả step pin
+    digitalWrite(stepxPin, LOW);
+    digitalWrite(stepyPin, LOW);
+    digitalWrite(stepzPin, LOW);
+    
+    // Tính toán xem trục nào cần bước
+    if (stepCount < dx) {
+      errorX -= dx;
+      if (errorX < 0) {
+        digitalWrite(stepxPin, HIGH);
+        errorX += maxDist;
+      }
+    }
+    
+    if (stepCount < dy) {
+      errorY -= dy;
+      if (errorY < 0) {
+        digitalWrite(stepyPin, HIGH);
+        errorY += maxDist;
+      }
+    }
+    
+    if (stepCount < dz) {
+      errorZ -= dz;
+      if (errorZ < 0) {
+        digitalWrite(stepzPin, HIGH);
+        errorZ += maxDist;
+      }
+    }
+    
+    delayMicroseconds(stepDelay);  // Điều chỉnh tốc độ bằng cách thay đổi thời gian delay
+    stepCount++;
+  }
+  
+  // Cập nhật vị trí hiện tại
+  currentX = x;
+  currentY = y;
+  currentZ = z;
 }
 
 void loop() {
-  // Move to (1000, 500, 300) steps
-  moveTo(1000, 500, 300);
-  delay(1000); // Wait 1 second
+  // Di chuyển theo mẫu như code gốc nhưng đồng bộ
 
-  // Move back to the origin (-1000, -500, -300) steps
-  moveTo(-1000, -500, -300);
-  delay(1000); // Wait 1 second
-}
+  // Di chuyển X
+  moveSync(50 * stepsPerRevolution, 0, 0, 700);
+  delay(200);
 
-// Function to move the motor to the target position using Bresenham's algorithm
-void moveTo(int dx, int dy, int dz) {
-  // Determine the direction for each axis
-  digitalWrite(dirxPin, dx > 0 ? HIGH : LOW);
-  digitalWrite(diryPin, dy > 0 ? HIGH : LOW);
-  digitalWrite(dirzPin, dz > 0 ? HIGH : LOW);
+  // Di chuyển Y
+  moveSync(50 * stepsPerRevolution, stepsPerRevolution, 0, 700);
+  delay(200);
 
-  // Take the absolute value of each displacement
-  dx = abs(dx);
-  dy = abs(dy);
-  dz = abs(dz);
+  // Di chuyển Z
+  moveSync(50 * stepsPerRevolution, stepsPerRevolution, stepsPerRevolution, 700);
+  delay(200);
 
-  // Determine the maximum number of steps (for Bresenham)
-  int stepsMax = max(dx, max(dy, dz));
+  // Di chuyển Y ngược lại
+  moveSync(50 * stepsPerRevolution, 0, stepsPerRevolution, 700);
+  delay(200);
 
-  // Initialize errors for each axis
-  int errorX = 0;
-  int errorY = 0;
-  int errorZ = 0;
+  // Di chuyển Z ngược lại
+  moveSync(50 * stepsPerRevolution, 0, 0, 700);
+  delay(200);
 
-  // Calculate deltas for each axis (errors are multiplied by 2)
-  int deltaX = dx * 2;
-  int deltaY = dy * 2;
-  int deltaZ = dz * 2;
-
-  // Iterate over the number of steps
-  for (int step = 0; step < stepsMax; step++) {
-    // Move on the X axis
-    errorX += deltaX;
-    if (errorX >= stepsMax) {
-      digitalWrite(stepxPin, HIGH);
-      delayMicroseconds(700);  // Adjust speed by modifying delay time
-      digitalWrite(stepxPin, LOW);
-      delayMicroseconds(700);
-      errorX -= stepsMax * 2; // Reset error
-    }
-
-    // Move on the Y axis
-    errorY += deltaY;
-    if (errorY >= stepsMax) {
-      digitalWrite(stepyPin, HIGH);
-      delayMicroseconds(700);
-      digitalWrite(stepyPin, LOW);
-      delayMicroseconds(700);
-      errorY -= stepsMax * 2; // Reset error
-    }
-
-    // Move on the Z axis
-    errorZ += deltaZ;
-    if (errorZ >= stepsMax) {
-      digitalWrite(stepzPin, HIGH);
-      delayMicroseconds(700);
-      digitalWrite(stepzPin, LOW);
-      delayMicroseconds(700);
-      errorZ -= stepsMax * 2; // Reset error
-    }
-  }
+  // Di chuyển X ngược về vị trí ban đầu
+  moveSync(0, 0, 0, 700);
+  delay(200);
 }
